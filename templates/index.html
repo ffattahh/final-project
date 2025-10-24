@@ -1,0 +1,28 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Absensi QR - Login</title>
+</head>
+<body>
+  <h1>AbsesGO</h1>
+
+  <h2>Login Guru</h2>
+  <form action="/login_guru" method="post">
+    <input name="username" placeholder="username guru" required />
+    <input name="password" type="password" placeholder="password" required />
+    <button type="submit">Login Guru</button>
+  </form>
+
+  <hr>
+
+  <h2>Login Siswa</h2>
+  <form action="/login_siswa" method="post">
+    <input name="username" placeholder="username siswa" required />
+    <input name="password" type="password" placeholder="password" required />
+    <button type="submit">Login Siswa</button>
+  </form>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!-- templates/guru.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard Guru</title>
+</head>
+<body>
+  <h1>Dashboard Guru - {{ nama }}</h1>
+  <button id="btn-generate">Generate QR Token (5 menit)</button>
+  <div id="qr-area" style="margin-top:10px;"></div>
+  <hr>
+  <h2>Riwayat Absensi (terbaru)</h2>
+  <table border="1" cellpadding="6">
+    <tr><th>NIS</th><th>Nama</th><th>Waktu</th><th>Token</th></tr>
+    {% for a in absensi %}
+    <tr>
+      <td>{{ a.nis }}</td>
+      <td>{{ a.nama_siswa }}</td>
+      <td>{{ a.waktu_absen }}</td>
+      <td style="max-width:200px;overflow:auto;">{{ a.token_qr }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <p><a href="/logout">Logout</a></p>
+
+<script>
+document.getElementById('btn-generate').addEventListener('click', async () => {
+  const res = await fetch('/generate_token', {method:'POST'});
+  const j = await res.json();
+  if(j.status==='success'){
+    const qrArea = document.getElementById('qr-area');
+    qrArea.innerHTML = `<p>Token valid ${j.expires_in} detik</p><img src="${j.qr_url}" alt="QR">`;
+  } else {
+    alert('Gagal generate token: '+ (j.message || 'unknown'));
+  }
+});
+</script>
+</body>
+</html>

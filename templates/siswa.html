@@ -1,0 +1,74 @@
+<!-- templates/siswa.html -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard Siswa</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+</head>
+<body>
+  <h1>Halo, {{ nama }}</h1>
+  <p>Scan QR yang ditampilkan guru untuk absen otomatis.</p>
+
+  <video id="video" width="320" height="240" autoplay muted></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <p id="status">Status: menunggu scan...</p>
+
+  <h3>Riwayat Absensi</h3>
+  <table border="1" cellpadding="6">
+    <tr><th>Waktu</th><th>Token</th></tr>
+    {% for h in history %}
+    <tr>
+      <td>{{ h.waktu_absen }}</td>
+      <td style="max-width:200px;overflow:auto;">{{ h.token_qr }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <p><a href="/logout">Logout</a></p>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+
+function startCamera(){
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then(stream => { video.srcObject = stream; video.setAttribute("playsinline", true); })
+    .catch(err => { statusEl.textContent = 'Gagal akses kamera: '+err; });
+}
+
+function scanLoop(){
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height);
+    if (code) {
+      // token string is code.data
+      statusEl.textContent = 'Token ditemukan: ' + code.data.slice(0,20) + '...';
+      // send token to server
+      fetch('/scan_token', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ token: code.data })
+      }).then(r=>r.json()).then(j=>{
+        statusEl.textContent = j.message || JSON.stringify(j);
+      }).catch(e=>{
+        statusEl.textContent = 'Error kirim token: '+e;
+      });
+      // avoid multiple sends for a while: pause scanning 3s
+      setTimeout(()=>{ statusEl.textContent = 'Menunggu scan...'; }, 3000);
+    }
+  }
+  requestAnimationFrame(scanLoop);
+}
+
+startCamera();
+requestAnimationFrame(scanLoop);
+</script>
+</body>
+</html>
