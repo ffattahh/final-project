@@ -5,38 +5,214 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dashboard Guru</title>
+  <style>
+    :root {
+      --primary: #3484FF;
+      --primary-hover: #2d74e3;
+      --accent: #58D2FF;
+      --text-dark: #222;
+      --bg-light: #f4f6fb;
+      --radius: 0.75rem;
+      --shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: "Poppins", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      color: var(--primary);
+      font-size: 1.75rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .card {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 45rem;
+      margin-bottom: 2rem;
+    }
+
+    #btn-generate {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    #btn-generate:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    #qr-area {
+      margin-top: 1rem;
+      text-align: center;
+    }
+
+    #qr-area img {
+      margin-top: 0.75rem;
+      width: 20rem;
+      height: 20rem;
+      object-fit: contain;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    table th {
+      background: var(--primary);
+      color: #fff;
+      text-align: left;
+      padding: 0.75rem;
+    }
+
+    table td {
+      border-bottom: 1px solid #ddd;
+      padding: 0.6rem;
+    }
+
+    tr:nth-child(even) {
+      background: #f9fafc;
+    }
+
+    .logout {
+      margin-top: 1rem;
+      text-align: center;
+    }
+
+    .logout a {
+      text-decoration: none;
+      color: #fff;
+      background: #dc3545;
+      padding: 0.6rem 1.25rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      transition: background 0.3s ease;
+    }
+
+    .logout a:hover {
+      background: #c82333;
+    }
+
+
+    @media (max-width: 40rem) {
+      .card {
+        padding: 1rem;
+      }
+      table th, table td {
+        font-size: 0.8rem;
+      }
+      #qr-area img {
+        width: 8rem;
+        height: 8rem;
+      }
+    }
+  </style>
 </head>
 <body>
   <h1>Dashboard Guru - {{ nama }}</h1>
-  <button id="btn-generate">Generate QR Token (5 menit)</button>
-  <div id="qr-area" style="margin-top:10px;"></div>
-  <hr>
-  <h2>Riwayat Absensi (terbaru)</h2>
-  <table border="1" cellpadding="6">
-    <tr><th>NIS</th><th>Nama</th><th>Waktu</th><th>Token</th></tr>
-    {% for a in absensi %}
-    <tr>
-      <td>{{ a.nis }}</td>
-      <td>{{ a.nama_siswa }}</td>
-      <td>{{ a.waktu_absen }}</td>
-      <td style="max-width:200px;overflow:auto;">{{ a.token_qr }}</td>
-    </tr>
-    {% endfor %}
-  </table>
 
-  <p><a href="/logout">Logout</a></p>
+  <!-- CARD QR -->
+  <div class="card">
+    <h2>Generate Token Absensi</h2>
+    <button id="btn-generate">Generate QR Token (5 menit)</button>
+    <div id="qr-area"></div>
+  </div>
 
-<script>
-document.getElementById('btn-generate').addEventListener('click', async () => {
-  const res = await fetch('/generate_token', {method:'POST'});
+  <!-- CARD ABSENSI -->
+  <div class="card">
+    <h2>Riwayat Absensi (Terbaru)</h2>
+    <table>
+      <tr>
+        <th>NIS</th>
+        <th>Nama</th>
+        <th>Waktu</th>
+        <!-- <th>Token</th> -->
+      </tr>
+      {% for a in absensi %}
+      <tr>
+        <td>{{ a.nis }}</td>
+        <td>{{ a.nama_siswa }}</td>
+        <td>{{ a.waktu_absen }}</td>
+        <!-- <td style="max-width:10rem; overflow:auto;">{{ a.token_qr }}</td> -->
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="logout">
+    <a href="/logout">Logout</a>
+  </div>
+
+  <script>
+  // document.getElementById('btn-generate').addEventListener('click', async () => {
+  //   const res = await fetch('/generate_token', { method: 'POST' });
+  //   const j = await res.json();
+  //   if (j.status === 'success') {
+  //     const qrArea = document.getElementById('qr-area');
+  //     qrArea.innerHTML = `<p>Token valid ${j.expires_in} detik</p><img src="${j.qr_url}" alt="QR">`;
+  //   } else {
+  //     alert('Gagal generate token: ' + (j.message || 'unknown'));
+  //   }
+  // });
+
+  document.getElementById('btn-generate').addEventListener('click', async () => {
+  const res = await fetch('/generate_token', { method: 'POST' });
   const j = await res.json();
-  if(j.status==='success'){
+  if (j.status === 'success') {
     const qrArea = document.getElementById('qr-area');
-    qrArea.innerHTML = `<p>Token valid ${j.expires_in} detik</p><img src="${j.qr_url}" alt="QR">`;
+    let waktu = j.expires_in;
+
+    // Tampilkan QR + waktu awal
+    qrArea.innerHTML = `
+      <p>Token valid <span id="countdown">${waktu}</span> detik</p>
+      <img src="${j.qr_url}" alt="QR">
+    `;
+
+    // Fungsi hitung mundur tiap 1 detik
+    const timer = setInterval(() => {
+      waktu--;
+      document.getElementById('countdown').textContent = waktu;
+
+      if (waktu <= 0) {
+        clearInterval(timer);
+        qrArea.innerHTML = "<p style='color:red;'>Token sudah kedaluwarsa ❌</p>";
+      }
+    }, 1000);
+
   } else {
-    alert('Gagal generate token: '+ (j.message || 'unknown'));
+    alert('Gagal generate token: ' + (j.message || 'unknown'));
   }
 });
-</script>
+  </script>
 </body>
 </html>
