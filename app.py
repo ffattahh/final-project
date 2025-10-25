@@ -16,7 +16,8 @@ TOKEN_TTL_SECONDS = 300  # 5 minutes
 # ---------- routes ----------
 @app.route('/')
 def index():
-    return render_template('index.html')
+    role = request.args.get('role', 'guru')
+    return render_template('index.html',  role=role)
 
 # login guru
 @app.route('/login_guru', methods=['POST'])
