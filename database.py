@@ -1,6 +1,7 @@
 # database.py
 import mysql.connector
 from datetime import datetime
+from mysql.connector import pooling
 
 DB_CONFIG = {
     'host': 'localhost',
@@ -10,6 +11,8 @@ DB_CONFIG = {
     'auth_plugin': 'mysql_native_password'
 }
 
+connection_pool = pooling.MySQLConnectionPool(pool_name="mypool",
+                                              pool_size=10,)
 
 def connect_db():
     return mysql.connector.connect(**DB_CONFIG)
@@ -72,17 +75,28 @@ def expire_token(token):
 # ABSENSI
 def insert_absen_by_id(id_siswa, token_qr):
     conn = connect_db()
-    cur = conn.cursor()
-    # cek duplikat hari ini
+    cur = conn.cursor(dictionary=True)
+
+    # Cek duplikat hari ini
     cur.execute("SELECT id_absen FROM absensi WHERE id_siswa=%s AND DATE(waktu_absen)=CURDATE()", (id_siswa,))
     if cur.fetchone():
         cur.close(); conn.close()
         return False
+
+    # Ambil data siswa (nama, jurusan, kelas)
+    cur.execute("SELECT nama_siswa, jurusan, kelas FROM siswa WHERE id_siswa=%s", (id_siswa,))
+    siswa = cur.fetchone()
+    if not siswa:
+        cur.close(); conn.close()
+        return False
+
+    # Insert data absensi
     now = datetime.now()
-    cur.execute(
-        "INSERT INTO absensi (id_siswa, waktu_absen, token_qr, status) VALUES (%s, %s, %s, 'hadir')",
-        (id_siswa, now, token_qr)
-    )
+    cur.execute("""
+        INSERT INTO absensi (id_siswa, waktu_absen, token_qr, status, nama_siswa, jurusan, kelas)
+        VALUES (%s, %s, %s, 'hadir', %s, %s, %s)
+    """, (id_siswa, now, token_qr, siswa['nama_siswa'], siswa['jurusan'], siswa['kelas']))
+
     conn.commit()
     cur.close(); conn.close()
     return True
