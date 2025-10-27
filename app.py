@@ -4,6 +4,8 @@ from database import (
     verify_token, insert_absen_by_id, get_absensi_by_id_siswa, get_all_absensi
 )
 import os, qrcode, uuid, subprocess, sys
+import mysql.connector
+from mysql.connector import Error
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
@@ -12,6 +14,23 @@ OUT_DIR = os.path.join('static', 'qrcodes')
 os.makedirs(OUT_DIR, exist_ok=True)
 
 TOKEN_TTL_SECONDS = 300  # 5 minutes
+
+# Konfigurasi Database untuk API CRUD
+DB_CONFIG = {
+    'host': 'localhost',
+    'database': 'absensi_qr',
+    'user': 'root',
+    'password': ''
+}
+
+# Fungsi untuk koneksi database (untuk API CRUD)
+def get_db_connection():
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
+        return connection
+    except Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return None
 
 # ---------- routes ----------
 @app.route('/')
@@ -109,6 +128,229 @@ def scan_token():
 def logout():
     session.clear()
     return redirect(url_for('index'))
+
+
+# ========================================
+# API CRUD SISWA - REST API
+# ========================================
+
+# API: GET - Ambil semua data siswa
+@app.route('/api/siswa', methods=['GET'])
+def api_get_siswa():
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Koneksi database gagal'
+            }), 500
+        
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM siswa ORDER BY id_siswa ASC")
+        data = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'data': data
+        }), 200
+        
+    except Error as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# API: POST - Tambah siswa baru
+@app.route('/api/siswa', methods=['POST'])
+def api_add_siswa():
+    try:
+        data = request.get_json()
+        
+        username = data.get('username', '')
+        password = data.get('password', '')
+        nis = data.get('nis', '')
+        nama_siswa = data.get('nama_siswa', '')
+        jurusan = data.get('jurusan', '')
+        kelas = data.get('kelas', '')
+        
+        # Validasi data
+        if not username or not password or not nis or not nama_siswa:
+            return jsonify({
+                'success': False,
+                'message': 'Data tidak lengkap. Username, password, NIS, dan nama siswa wajib diisi.'
+            }), 400
+        
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Koneksi database gagal'
+            }), 500
+        
+        cursor = connection.cursor()
+        query = """
+            INSERT INTO siswa (username, password, nis, nama_siswa, jurusan, kelas) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        values = (username, password, nis, nama_siswa, jurusan, kelas)
+        
+        cursor.execute(query, values)
+        connection.commit()
+        
+        last_id = cursor.lastrowid
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Siswa berhasil ditambahkan',
+            'id': last_id
+        }), 201
+        
+    except Error as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# API: GET - Ambil satu data siswa berdasarkan ID
+@app.route('/api/siswa/<int:id_siswa>', methods=['GET'])
+def api_get_siswa_by_id(id_siswa):
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Koneksi database gagal'
+            }), 500
+        
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM siswa WHERE id_siswa=%s", (id_siswa,))
+        data = cursor.fetchone()
+        
+        cursor.close()
+        connection.close()
+        
+        if data is None:
+            return jsonify({
+                'success': False,
+                'message': 'Siswa tidak ditemukan'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': data
+        }), 200
+        
+    except Error as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# API: PUT - Update data siswa
+@app.route('/api/siswa/<int:id_siswa>', methods=['PUT'])
+def api_update_siswa(id_siswa):
+    try:
+        data = request.get_json()
+        
+        username = data.get('username', '')
+        password = data.get('password', '')
+        nis = data.get('nis', '')
+        nama_siswa = data.get('nama_siswa', '')
+        jurusan = data.get('jurusan', '')
+        kelas = data.get('kelas', '')
+        
+        # Validasi data
+        if not username or not password or not nis or not nama_siswa:
+            return jsonify({
+                'success': False,
+                'message': 'Data tidak lengkap. Username, password, NIS, dan nama siswa wajib diisi.'
+            }), 400
+        
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Koneksi database gagal'
+            }), 500
+        
+        cursor = connection.cursor()
+        query = """
+            UPDATE siswa 
+            SET username=%s, password=%s, nis=%s, nama_siswa=%s, jurusan=%s, kelas=%s 
+            WHERE id_siswa=%s
+        """
+        values = (username, password, nis, nama_siswa, jurusan, kelas, id_siswa)
+        
+        cursor.execute(query, values)
+        connection.commit()
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            connection.close()
+            return jsonify({
+                'success': False,
+                'message': 'Siswa tidak ditemukan'
+            }), 404
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Data siswa berhasil diupdate'
+        }), 200
+        
+    except Error as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# API: DELETE - Hapus siswa
+@app.route('/api/siswa/<int:id_siswa>', methods=['DELETE'])
+def api_delete_siswa(id_siswa):
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message': 'Koneksi database gagal'
+            }), 500
+        
+        cursor = connection.cursor()
+        query = "DELETE FROM siswa WHERE id_siswa=%s"
+        
+        cursor.execute(query, (id_siswa,))
+        connection.commit()
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            connection.close()
+            return jsonify({
+                'success': False,
+                'message': 'Siswa tidak ditemukan'
+            }), 404
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Siswa berhasil dihapus'
+        }), 200
+        
+    except Error as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
 
 # ---------------------------
 # HTTPS helper: create cert
