@@ -148,11 +148,17 @@
     <h2>Riwayat Absensi</h2>
     <table>
       <tr>
+        <th>Nama</th>
+        <th>Kelas</th>
+        <th>Jurusan</th>
         <th>Waktu</th>
         <!-- <th>Token</th> -->
       </tr>
       {% for h in history %}
       <tr>
+        <td>{{ h.nama_siswa }}</td>
+        <td>{{ h.kelas }}</td>
+        <td>{{ h.jurusan}}</td>
         <td>{{ h.waktu_absen }}</td>
         <!-- <td style="max-width:10rem; overflow:auto;">{{ h.token_qr }}</td> -->
       </tr>
