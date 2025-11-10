@@ -1,14 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from database import (
     get_guru_by_username, get_siswa_by_username, insert_qr_token,
-    verify_token, insert_absen_by_id, get_absensi_by_id_siswa, get_all_absensi
+    verify_token, insert_absen_by_id, get_absensi_by_id_siswa, get_all_absensi, connect_db
 )
 import os, qrcode, uuid, subprocess, sys
 import mysql.connector
+import io
+from flask import send_file
+from openpyxl import Workbook
 from mysql.connector import Error
+from flask_cors import CORS
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = "change_this_secret"
 OUT_DIR = os.path.join('static', 'qrcodes')
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -123,12 +128,185 @@ def scan_token():
         return jsonify({'status':'success','message':'Absensi berhasil tercatat'})
     else:
         return jsonify({'status':'warning','message':'Anda sudah absen hari ini'})
+    
+@app.route('/api/absensi', methods=['GET'])
+def api_get_absensi():
+    """API untuk mendapatkan data absensi terbaru (dalam format WIB string)"""
+    try:
+        absensi_list = get_all_absensi()  # asumsi: list of dict dengan key 'waktu_absen' sebagai datetime
+        
+        # Format semua datetime ke string WIB: 'YYYY-MM-DD HH:MM:SS'
+        for item in absensi_list:
+            if isinstance(item.get('waktu_absen'), datetime):
+                # Karena disimpan sebagai WIB lokal, langsung format tanpa konversi
+                item['waktu_absen'] = item['waktu_absen'].strftime('%Y-%m-%d %H:%M:%S')
+            # Jika bukan datetime, biarkan apa adanya (atau skip)
+
+        return jsonify({
+            'success': True,
+            'data': absensi_list
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/absensi/filter', methods=['GET'])
+def api_filter_absensi():
+    try:
+        kelas = request.args.get('kelas')
+        jurusan = request.args.get('jurusan')
+        bulan = request.args.get('bulan')  # format: YYYY-MM
+
+        conn = connect_db()
+        cur = conn.cursor(dictionary=True)
+
+        query = """
+            SELECT s.nis, s.nama_siswa, s.kelas, s.jurusan, a.waktu_absen
+            FROM absensi a
+            JOIN siswa s ON a.id_siswa = s.id_siswa
+            WHERE 1=1
+        """
+        params = []
+
+        if kelas:
+            query += " AND s.kelas LIKE %s"
+            params.append(f"{kelas}%")  # misal 'X%' cocok dengan 'X-RPL'
+
+        if jurusan:
+            query += " AND s.jurusan = %s"
+            params.append(jurusan)
+
+        if bulan:
+            from datetime import datetime
+            start_date = datetime.strptime(bulan + "-01", "%Y-%m-%d")
+            if start_date.month == 12:
+                end_date = start_date.replace(year=start_date.year + 1, month=1)
+            else:
+                end_date = start_date.replace(month=start_date.month + 1)
+            query += " AND a.waktu_absen >= %s AND a.waktu_absen < %s"
+            params.extend([start_date, end_date])
+
+        query += " ORDER BY a.waktu_absen DESC"
+        cur.execute(query, params)
+        data = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Format waktu agar bisa dibaca JSON
+        for d in data:
+            if isinstance(d['waktu_absen'], datetime):
+                d['waktu_absen'] = d['waktu_absen'].strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('index'))
 
+@app.route('/export_absensi', methods=['GET'])
+def export_absensi():
+    """
+    Export riwayat absensi ke file Excel (.xlsx).
+    Filter opsional:
+      - start_date (YYYY-MM-DD)
+      - end_date   (YYYY-MM-DD)
+      - kelas
+      - jurusan
+      - bulan (YYYY-MM)
+    """
+    if 'guru' not in session:
+        return redirect(url_for('index'))
+
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    kelas = request.args.get('kelas')
+    jurusan = request.args.get('jurusan')
+    bulan = request.args.get('bulan')
+
+    absensi_list = get_all_absensi()  # pastikan ini return list of dict lengkap: termasuk kelas & jurusan
+
+    # ==== Filter fungsi ====
+    def in_filter(item):
+        dt = item.get('waktu_absen')
+        if isinstance(dt, str):
+            for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
+                try:
+                    dt = datetime.strptime(dt, fmt)
+                    break
+                except:
+                    pass
+
+        # Filter tanggal rentang (jika ada)
+        if start_date:
+            sd = datetime.strptime(start_date, '%Y-%m-%d')
+            if dt < sd:
+                return False
+        if end_date:
+            ed = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1) - timedelta(seconds=1)
+            if dt > ed:
+                return False
+
+        # Filter bulan (YYYY-MM)
+        if bulan:
+            try:
+                year, month = bulan.split('-')
+                if dt.year != int(year) or dt.month != int(month):
+                    return False
+            except:
+                pass
+
+        # Filter kelas
+        if kelas and str(item.get('kelas', '')).lower() != kelas.lower():
+            return False
+
+        # Filter jurusan
+        if jurusan and str(item.get('jurusan', '')).lower() != jurusan.lower():
+            return False
+
+        return True
+
+    filtered_absen = [it for it in absensi_list if in_filter(it)]
+
+    # ==== Export Excel ====
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Riwayat Absensi"
+
+    headers = ['ID Absen', 'NIS', 'Nama Siswa', 'Kelas', 'Jurusan', 'Waktu Absen', 'Keterangan']
+    ws.append(headers)
+
+    for item in filtered_absen:
+        ws.append([
+            item.get('id_absen') or item.get('id') or '',
+            item.get('nis') or '',
+            item.get('nama_siswa') or item.get('nama') or '',
+            item.get('kelas') or '',
+            item.get('jurusan') or '',
+            str(item.get('waktu_absen')),
+            item.get('keterangan') or item.get('status') or ''
+        ])
+
+    for column_cells in ws.columns:
+        length = max(len(str(cell.value)) for cell in column_cells)
+        ws.column_dimensions[column_cells[0].column_letter].width = min(length + 2, 50)
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+
+    filename = f"absensi_filtered_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 # ========================================
 # API CRUD SISWA - REST API

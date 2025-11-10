@@ -295,6 +295,69 @@
       margin-bottom: 1rem;
     }
 
+    /* Refresh Button Styles */
+    .btn-refresh {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      color: white;
+      border: none;
+      padding: 0.6rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(52, 132, 255, 0.3);
+    }
+
+    .btn-refresh:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(52, 132, 255, 0.4);
+    }
+
+    .btn-refresh:active {
+      transform: translateY(0);
+    }
+
+    .btn-refresh.loading {
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .refresh-icon {
+      display: inline-block;
+      transition: transform 0.6s ease;
+      font-size: 1.1rem;
+    }
+
+    .btn-refresh.loading .refresh-icon {
+      animation: rotate 1s linear infinite;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .last-update-time {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.5rem;
+      text-align: right;
+    }
+
+    .table-container {
+      width: 100%;
+      position: relative;
+    }
+
+    .table-container.updating {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
     @media (max-width: 40rem) {
       .card {
         padding: 1rem;
@@ -316,6 +379,13 @@
       .btn {
         width: 100%;
       }
+      .card-header {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .card-header h2 {
+        font-size: 1.25rem;
+      }
     }
   </style>
 </head>
@@ -328,29 +398,119 @@
     <button id="btn-generate">Generate QR Token (5 menit)</button>
     <div id="qr-area"></div>
   </div>
-
+  
   <!-- CARD ABSENSI -->
   <div class="card">
+  <div class="card-header">
     <h2>Riwayat Absensi (Terbaru)</h2>
-    <table>
-      <tr>
-        <th>NIS</th>
-        <th>Nama</th>
-        <th>Kelas</th>
-        <th>Jurusan</th>
-        <th>Waktu</th>
-      </tr>
-      {% for a in absensi %}
-      <tr>
-        <td>{{ a.nis }}</td>
-        <td>{{ a.nama_siswa }}</td>
-        <td>{{ a.kelas }}</td>
-        <td>{{ a.jurusan}}</td>
-        <td>{{ a.waktu_absen }}</td>
-      </tr>
-      {% endfor %}
+  </div>
+
+  <div class="filter-container" style="
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;">
+
+  <label for="filterKelas">Kelas:</label>
+  <select id="filterKelas" style="
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;">
+    <option value="">Semua</option>
+    <option value="X">X</option>
+    <option value="XI">XI</option>
+    <option value="XII">XII</option>
+  </select>
+
+  <label for="filterJurusan">Jurusan:</label>
+  <select id="filterJurusan" style="
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;">
+    <option value="">Semua</option>
+    <option value="RPL">RPL</option>
+    <option value="TKJ">TKJ</option>
+  </select>
+
+  <label for="filterBulan">Bulan:</label>
+  <input type="month" id="filterBulan" style="
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;">
+
+  <button id="btnFilter" style="
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;">🔍 Filter</button>
+  </div>
+
+  <div class="table-container" id="absensiTableContainer">
+    <table id="absensiTable">
+      <thead>
+        <tr>
+          <th>NIS</th>
+          <th>Nama</th>
+          <th>Kelas</th>
+          <th>Jurusan</th>
+          <th>Waktu</th>
+        </tr>
+      </thead>
+      <tbody id="absensiTableBody">
+        {% for a in absensi %}
+        <tr>
+          <td>{{ a.nis }}</td>
+          <td>{{ a.nama_siswa }}</td>
+          <td>{{ a.kelas }}</td>
+          <td>{{ a.jurusan }}</td>
+          <td>{{ a.waktu_absen }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
+
+  <div class="last-update-time" id="lastUpdateTime">
+    Terakhir diupdate: {{ last_update_time }}
+  </div>
+
+  <div class="button-container" style="
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 15px;
+      margin-top: 15px;">
+    <button id="btn-refresh-absensi" style="
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      ">
+      🔄 Refresh
+    </button>
+
+    <a href="/export_absensi" style="
+        background-color: #4CAF50;
+        color: white;
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      ">
+      📊 Export ke Excel
+    </a>
+  </div>
+  </div>
+
 
   <!-- CARD CRUD SISWA -->
   <div class="card">
@@ -464,15 +624,112 @@
     }
   });
 
+  // ================================
+  // FUNGSI FORMAT WAKTU
+  // ================================
+  function formatDate(dateInput) {
+    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateInput)) {
+    return dateInput; // ✅ Tidak diubah — ini WIB!
+    }
+    // Fallback (opsional)
+    const d = new Date(dateInput);
+      if (isNaN(d)) return String(dateInput);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    // Jika parsing gagal, return string asli
+      if (isNaN(date.getTime())) {
+      return dateInput;
+    }
+
+    // Format ke YYYY-MM-DD HH:MM:SS
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
   // ========================================
-  // FUNGSI BARU - CRUD SISWA
+  // FUNGSI BARU - REFRESH ABSENSI
   // ========================================
-  const API_URL = '/api/siswa';
-  
-  // Load data siswa saat halaman dimuat
+  function updateLastRefreshTime() {
+    const now = new Date();
+    const timeString = formatDate(now); // Gunakan fungsi yang sama
+    document.getElementById('lastUpdateTime').textContent = `Terakhir diupdate: ${timeString}`;
+  }
+
+  function refreshAbsensi() {
+    const btn = document.getElementById('btn-refresh-absensi');
+    const container = document.getElementById('absensiTableContainer');
+    const tbody = document.getElementById('absensiTableBody');
+    
+    // Tambah efek loading
+    btn.classList.add('loading');
+    container.classList.add('updating');
+    
+    // Fetch data absensi terbaru dari server
+    fetch('/api/absensi', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if(data.success) {
+        // Update tabel dengan data baru
+        tbody.innerHTML = '';
+        
+        if(data.data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Belum ada data absensi</td></tr>';
+        } else {
+          data.data.forEach(absen => {
+            const formattedTime = formatDate(absen.waktu_absen);
+            const row = `
+              <tr>
+                <td>${absen.nis || '-'}</td>
+                <td>${absen.nama_siswa || '-'}</td>
+                <td>${absen.kelas || '-'}</td>
+                <td>${absen.jurusan || '-'}</td>
+                <td>${formattedTime}</td>
+              </tr>
+            `;
+            tbody.innerHTML += row;
+          });
+        }
+        
+        // Update waktu refresh
+        updateLastRefreshTime();
+      } else {
+        alert('Gagal memuat data absensi: ' + (data.message || 'unknown'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Error: Tidak dapat terhubung ke server');
+    })
+    .finally(() => {
+      // Hapus efek loading
+      btn.classList.remove('loading');
+      container.classList.remove('updating');
+    });
+  }
+
+  // Event listener untuk tombol refresh
+  document.getElementById('btn-refresh-absensi').addEventListener('click', refreshAbsensi);
+
+  // Set waktu awal saat halaman dimuat
   document.addEventListener('DOMContentLoaded', function() {
+    updateLastRefreshTime();
     loadSiswa();
   });
+
+  // ========================================
+  // FUNGSI CRUD SISWA
+  // ========================================
+  const API_URL = '/api/siswa';
   
   // Fungsi untuk load data siswa
   function loadSiswa() {
@@ -696,6 +953,79 @@
       closeModal();
     }
   }
+
+  <script>
+// ========================================
+// 🔰 FITUR FILTER & EXPORT ABSENSI
+// ========================================
+
+async function filterAbsensi() {
+  const kelas = document.getElementById('filterKelas').value;
+  const jurusan = document.getElementById('filterJurusan').value;
+  const bulan = document.getElementById('filterBulan').value;
+  const tbody = document.getElementById('absensiTableBody');
+  const container = document.getElementById('absensiTableContainer');
+
+  container.classList.add('updating');
+  try {
+    let url = '/api/absensi/filter?';
+    if (kelas) url += `kelas=${encodeURIComponent(kelas)}&`;
+    if (jurusan) url += `jurusan=${encodeURIComponent(jurusan)}&`;
+    if (bulan) url += `bulan=${encodeURIComponent(bulan)}&`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    tbody.innerHTML = '';
+    if (data.success && data.data.length > 0) {
+      data.data.forEach(absen => {
+        const waktu = formatDate(absen.waktu_absen);
+        tbody.innerHTML += `
+          <tr>
+            <td>${absen.nis}</td>
+            <td>${absen.nama_siswa}</td>
+            <td>${absen.kelas}</td>
+            <td>${absen.jurusan}</td>
+            <td>${waktu}</td>
+          </tr>`;
+      });
+    } else {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Tidak ada data sesuai filter</td></tr>`;
+    }
+    updateLastRefreshTime();
+  } catch (err) {
+    console.error('Error filter:', err);
+  } finally {
+    container.classList.remove('updating');
+  }
+}
+
+// Tombol Filter
+document.getElementById('btnFilter').addEventListener('click', filterAbsensi);
+
+// Tombol Reset
+document.getElementById('btnResetFilter').addEventListener('click', () => {
+  document.getElementById('filterKelas').value = '';
+  document.getElementById('filterJurusan').value = '';
+  document.getElementById('filterBulan').value = '';
+  refreshAbsensi();
+});
+
+// Tombol Export ke Excel mengikuti filter
+document.getElementById('btnExportExcel').addEventListener('click', () => {
+  const kelas = document.getElementById('filterKelas').value;
+  const jurusan = document.getElementById('filterJurusan').value;
+  const bulan = document.getElementById('filterBulan').value;
+
+  let url = '/export_absensi';
+  const params = [];
+  if (kelas) params.push(`kelas=${encodeURIComponent(kelas)}`);
+  if (jurusan) params.push(`jurusan=${encodeURIComponent(jurusan)}`);
+  if (bulan) params.push(`bulan=${encodeURIComponent(bulan)}`);
+  if (params.length > 0) url += '?' + params.join('&');
+
+  window.location.href = url; // otomatis download
+  });
   </script>
 </body>
 </html>
